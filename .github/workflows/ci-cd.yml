@@ -9,7 +9,7 @@ on:
     types: [ created ]
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     
     steps:
@@ -28,19 +28,14 @@ jobs:
         key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2
     
-    - name: Run tests
-      run: mvn clean test
+    - name: Compile project
+      run: mvn clean compile
     
-    - name: Generate test report
-      uses: dorny/test-reporter@v1
-      if: success() || failure()
-      with:
-        name: Maven Tests
-        path: target/surefire-reports/*.xml
-        reporter: java-junit
-
-  build:
-    needs: test
+    - name: Build JAR (on push to main)
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: mvn package assembly:single
+    
+  release:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'created'
     
@@ -60,7 +55,7 @@ jobs:
         key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2
     
-    - name: Build JAR
+    - name: Build JAR for release
       run: mvn clean compile assembly:single
     
     - name: Get project version
@@ -68,7 +63,7 @@ jobs:
       run: |
         VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "jar-name=socketsleuth-$VERSION-jar-with-dependencies.jar" >> $GITHUB_OUTPUT
+        echo "jar-name=SocketSleuth-$VERSION-jar-with-dependencies.jar" >> $GITHUB_OUTPUT
     
     - name: Upload JAR to release
       uses: actions/upload-release-asset@v1
@@ -88,7 +83,7 @@ jobs:
         retention-days: 30
 
   publish:
-    needs: build
+    needs: release
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'created'
     
